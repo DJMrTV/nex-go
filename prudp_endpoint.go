@@ -19,6 +19,7 @@ import (
 // and secure servers. However the functionality of rdv::PRUDPEndPoint and nn::nex::SecureEndPoint is seemingly
 // identical. Rather than duplicate the logic from PRUDPEndpoint, a IsSecureEndpoint flag has been added instead.
 type PRUDPEndPoint struct {
+	connectionChannel                 chan *PRUDPConnectionSocket
 	Server                            *PRUDPServer
 	StreamID                          uint8
 	DefaultStreamSettings             *StreamSettings
@@ -401,6 +402,10 @@ func (pep *PRUDPEndPoint) handleConnect(packet PRUDPPacketInterface) {
 	pep.emit("connect", ack)
 
 	pep.Server.sendRaw(connection.Socket, ack.Bytes())
+
+	pep.connectionChannel <- &PRUDPConnectionSocket{
+		remote: connection,
+	}
 }
 
 func (pep *PRUDPEndPoint) handleData(packet PRUDPPacketInterface) {
@@ -589,6 +594,7 @@ func (pep *PRUDPEndPoint) handleReliable(packet PRUDPPacketInterface) {
 			connection.SetIncomingFragmentBuffer(substreamID, incomingFragmentBuffer)
 
 			if nextPacket.getFragmentID() == 0 {
+
 				message := NewRMCMessage(pep)
 				err := message.FromBytes(incomingFragmentBuffer)
 				if err != nil {
@@ -599,7 +605,9 @@ func (pep *PRUDPEndPoint) handleReliable(packet PRUDPPacketInterface) {
 				nextPacket.SetRMCMessage(message)
 				connection.ClearOutgoingBuffer(substreamID)
 
-				pep.emit("data", nextPacket)
+				connection.PacketChannel <- &incomingFragmentBuffer
+
+				//pep.emit("data", nextPacket)
 			}
 		}
 
@@ -665,7 +673,11 @@ func (pep *PRUDPEndPoint) handleUnreliable(packet PRUDPPacketInterface) {
 
 	packet.SetRMCMessage(message)
 
-	pep.emit("data", packet)
+	connection := packet.Sender().(*PRUDPConnection)
+
+	connection.PacketChannel <- &payload
+
+	//pep.emit("data", packet)
 }
 
 func (pep *PRUDPEndPoint) sendPing(connection *PRUDPConnection) {
@@ -817,4 +829,12 @@ func NewPRUDPEndPoint(streamID uint8) *PRUDPEndPoint {
 	pep.packetHandlers[constants.PingPacket] = pep.handlePing
 
 	return pep
+}
+
+func (pep *PRUDPEndPoint) Accept() *PRUDPConnectionSocket {
+	for conn := range pep.connectionChannel {
+		return conn
+	}
+
+	return nil
 }

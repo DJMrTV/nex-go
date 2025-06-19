@@ -43,7 +43,8 @@ func (ps *PRUDPServer) BindPRUDPEndPoint(endpoint *PRUDPEndPoint) {
 
 // Listen is an alias of ListenUDP. Implemented to conform to the EndpointInterface
 func (ps *PRUDPServer) Listen(port int) {
-	ps.ListenUDP(port)
+	//this is part of the refactor i'm trying to do, we cannot block the main thread here as the server will be communicating with it
+	go ps.ListenUDP(port)
 }
 
 // ListenUDP starts a PRUDP server on a given port using a UDP server

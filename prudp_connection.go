@@ -14,6 +14,7 @@ import (
 // Does not necessarily represent a socket connection.
 // A single network socket may be used to open multiple PRUDP virtual connections
 type PRUDPConnection struct {
+	PacketChannel                       chan *[]byte
 	Socket                              *SocketConnection // * The connections parent socket
 	endpoint                            *PRUDPEndPoint    // * The PRUDP endpoint the connection is connected to
 	ConnectionState                     ConnectionState
